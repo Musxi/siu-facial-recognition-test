@@ -16,10 +16,6 @@
     *   Supports dynamic registration of multiple face angles for a single identity. The system learns and improves accuracy over time as you add more samples.
     *   支持为同一身份动态注册多个角度的人脸。随着样本的增加，系统会不断学习并提高识别准确率。
 
-*   **👤 Enhanced Analytics / 增强分析**
-    *   **New**: Real-time Age, Gender, and Expression detection.
-    *   **新增**: 实时年龄、性别和表情检测。
-
 *   **📊 Real-time Visualization / 实时可视化**
     *   Features a responsive dashboard with live confidence streams, detection frequency charts, and recognition confidence trends.
     *   具备响应式仪表盘，提供实时置信度数据流、识别频率图表以及识别置信度趋势图。
@@ -45,60 +41,47 @@ The system operates on a pipeline of neural networks powered by `face-api.js`:
     *   **Function**: Extracts the unique "Fingerprint" (128-d vector) for matching.
     *   **功能**: 提取人脸的唯一“指纹”（128维向量）用于匹配。
 
-4.  **Demographics (Age & Gender Net / Face Expression Net)**
-    *   **Function**: Estimates age, gender, and current emotional state.
-    *   **Limitation**: **Does NOT support Race or Skin Tone classification**. This is a limitation of the underlying model architecture and training data.
-    *   **功能**: 估算年龄、性别和当前情绪状态。
-    *   **限制**: **不支持人种或肤色分类**。这是底层模型架构和训练数据的限制。
-
-### 2.2 Matching Logic / 匹配逻辑
+### 2.2 Matching Logic & Optimization / 匹配逻辑与优化
 
 The system identifies users by calculating the **Euclidean Distance** between the real-time vector and stored vectors.
 系统通过计算实时向量与存储向量之间的 **欧氏距离** 来识别用户。
 
-*   **Distance < 0.55**: ✅ **Match Confirmed** (System considers them the same person).
-*   **Distance > 0.55**: ❌ **Unknown** (System considers them different people).
+*   **Threshold**: 0.55 (Adjustable in code). Distance < 0.55 matches the user.
+*   **Optimization**: The system caches the AI Matcher and only rebuilds it when you add/delete users or samples, ensuring smooth 30FPS performance.
+*   **优化**: 系统会缓存 AI 匹配器，仅在您添加/删除用户或样本时才重建，确保流畅的 30FPS 性能。
 
 ---
 
 ## 3. Deployment Guide (Cloudflare via GitHub) / 部署指南 (通过 GitHub)
 
-**IMPORTANT: Please read carefully to avoid the "Hello World" error.**
-**重要：请仔细阅读以避免出现 "Hello World" 错误。**
+**CRITICAL: READ THIS TO AVOID DEPLOYMENT ERRORS**
+**关键：请阅读此部分以避免部署错误**
 
-You encountered an issue where there was no "Build output directory" option. This means you accidentally created a **Worker** instead of a **Page**.
-您之前遇到的“没有构建输出目录选项”的问题，是因为您误创建了 **Worker** 而不是 **Page**。
+If you see "Hello World" or cannot find "Build output directory", you created a **Worker** instead of a **Page**.
+如果您看到 "Hello World" 或者找不到“构建输出目录”选项，说明您错误地创建了 **Worker** 而不是 **Page**。
 
-### Correct Steps to Deploy / 正确部署步骤
+### Correct Steps / 正确步骤
 
-1.  **Commit & Push Code**:
-    *   Ensure the changes to `index.html` (removing importmap) are pushed to your GitHub repository.
-    *   确保已将 `index.html` 的修改（移除 importmap）推送到 GitHub。
+1.  **Update Code**: Ensure `index.html` (cleaned version) is pushed to GitHub.
+    **更新代码**: 确保已将修复后的 `index.html` 推送到 GitHub。
 
-2.  **Go to Cloudflare Dashboard**:
-    *   Navigate to **Workers & Pages** -> **Overview**.
-    *   进入 Cloudflare 控制台 -> **Workers & Pages** -> **概览**。
-
-3.  **Delete the Wrong Project (Optional but Recommended)**:
-    *   If you have a project showing "Hello World", delete it to avoid confusion.
-    *   如果有一个显示 "Hello World" 的项目，建议先删除它。
-
-4.  **Create Application (The Critical Step)**:
+2.  **Cloudflare Dashboard**:
+    *   Log in and go to **Workers & Pages**.
     *   Click **Create application** (创建应用).
-    *   **LOOK AT THE TABS**: You will see two tabs: "Workers" and "Pages".
-    *   **CLICK "PAGES"**. (一定要点击 **Pages** 标签页)。
-    *   Click **Connect to Git** (连接到 Git)。
+    *   **CLICK THE "PAGES" TAB** (点击 "PAGES" 标签页) - *Do not stay on the default Workers tab*.
+    *   Click **Connect to Git** (连接到 Git).
 
-5.  **Configure Build**:
+3.  **Setup Build / 设置构建**:
     *   Select your repository.
-    *   **Project Name**: Enter `face-guard` (or any name).
-    *   **Framework Preset**: Select `Vite` or `React`.
+    *   **Project Name**: `face-guard` (or your choice).
+    *   **Framework Preset**: Select **Vite** or **React**.
     *   **Build command**: `npm run build`
     *   **Build output directory**: `dist`
-        *   *(If you are in the right place, you WILL see this option / 如果操作正确，您一定会看到这个选项)*.
+        *   *(You MUST see this option. If not, go back and select "Pages")*
+        *   *(您必须看到此选项。如果没有，请返回并选择 "Pages")*
 
-6.  **Save and Deploy**:
-    *   Click **Save and Deploy**. Cloudflare will pull your code, run `npm install`, `npm run build`, and host the `dist` folder.
+4.  **Save and Deploy**:
+    *   Click Deploy. Cloudflare will install dependencies and build your site.
 
 ---
 
@@ -106,18 +89,19 @@ You encountered an issue where there was no "Build output directory" option. Thi
 
 ### Step 1: Initialization / 初始化
 1.  Open the application URL.
-2.  **Wait**: The screen will show "Initializing Neural Networks". It downloads ~12MB of model weights.
-3.  **Permission**: Click "Allow" when the browser asks for camera access.
+2.  **Wait**: The screen will show "Initializing Neural Networks".
+3.  **Permission**: Click "Allow" for camera access.
 
 ### Step 2: Registration / 注册身份
 1.  Switch to the **CONFIG** tab.
 2.  Enter a name and click **Register ID**.
 
-### Step 3: Optimization / 优化
-*To ensure robust recognition:*
-1.  Find your card in the list.
+### Step 3: Improving Accuracy (Active Learning) / 提高准确率（主动学习）
+*To make the system smarter:*
+1.  In the **CONFIG** tab, find your card.
 2.  Click **+ Add Training Sample**.
-3.  Turn your head (Left/Right/Up/Down) and add samples.
+3.  Turn your head slightly (Left, Right, Up) and add more samples.
+4.  *The system will now recognize you from those angles too.*
 
 ### Step 4: Monitoring / 监控
 1.  Switch back to the **MONITOR** tab.

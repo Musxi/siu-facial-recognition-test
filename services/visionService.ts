@@ -11,10 +11,14 @@ import { PersonProfile, FaceDetection } from "../types";
  * 4. Calculate Euclidean Distance for Matching / 计算欧氏距离进行匹配
  */
 
-declare const faceapi: any; // Global from CDN (在 index.html 中引入的全局变量)
+declare const faceapi: any; // Global from CDN (in index.html)
 
 let isModelLoaded = false;
 let faceMatcher: any = null;
+
+// Cache state to prevent rebuilding Matcher every frame
+// 缓存状态，防止每帧都重新构建匹配器 (性能优化)
+let lastDescriptorCount = -1;
 
 // Configuration / 配置项
 const CONFIG = {
@@ -25,6 +29,7 @@ const CONFIG = {
   // Threshold for matching. Lower = stricter, Higher = looser.
   // 匹配阈值。0.6 是标准值。
   // 越低越严格（容易识别不出），越高越宽松（容易认错人）。
+  // Recommended: 0.50 - 0.55 for strict security.
   DISTANCE_THRESHOLD: 0.55 
 };
 
@@ -87,10 +92,23 @@ export const extractFaceDescriptor = async (imageElement: HTMLImageElement | HTM
 /**
  * Build/Update the Face Matcher from Profiles / 构建或更新人脸匹配器
  * 
- * This creates a reference set of known vectors to compare against.
- * 将所有已注册用户的特征向量加载到匹配器中，用于后续比对。
+ * Performance Optimization:
+ * This creates a reference set of known vectors. It checks if data changed before rebuilding.
+ * 性能优化：创建已知向量的参考集。仅当数据发生变化时才重建，避免重复计算。
  */
 const updateFaceMatcher = (profiles: PersonProfile[]) => {
+  // Check if total number of vectors has changed (Simple dirty check)
+  // 检查向量总数是否变化（简单的脏检查）
+  const currentDescriptorCount = profiles.reduce((acc, p) => acc + p.descriptors.length, 0);
+  
+  // If count is same and matcher exists, skip rebuilding to save CPU
+  // 如果数量一致且匹配器已存在，跳过重建以节省 CPU
+  if (currentDescriptorCount === lastDescriptorCount && faceMatcher) {
+    return;
+  }
+
+  console.log(`Updating AI Matcher with ${currentDescriptorCount} vectors... / 正在更新 AI 匹配器...`);
+
   const labeledDescriptors: any[] = [];
 
   profiles.forEach(p => {
@@ -116,6 +134,8 @@ const updateFaceMatcher = (profiles: PersonProfile[]) => {
   } else {
     faceMatcher = null;
   }
+  
+  lastDescriptorCount = currentDescriptorCount;
 };
 
 /**
@@ -133,14 +153,15 @@ export const detectFacesReal = async (
 
   // 1. Detect All Faces in the frame
   // 1. 检测画面中的所有是一张或多张人脸
+  // Using SSD MobileNet for speed / 使用 SSD MobileNet 保证速度
   const detections = await faceapi.detectAllFaces(video)
     .withFaceLandmarks()
     .withFaceDescriptors();
 
   if (!detections.length) return [];
 
-  // 2. Update Matcher with latest profiles
-  // 2. 使用最新的用户档案更新匹配器 (注：生产环境中应只在档案变化时更新)
+  // 2. Update Matcher (Only if needed)
+  // 2. 更新匹配器 (仅当数据变动时)
   updateFaceMatcher(profiles);
 
   // 3. Match each detected face against the database
@@ -162,13 +183,13 @@ export const detectFacesReal = async (
         // Calculate Confidence based on Euclidean Distance
         // 基于欧氏距离计算置信度
         // Distance 0.0 = Identical (100% match) / 距离 0.0 = 完全一致
-        // Distance 0.6 = Threshold / 距离 0.6 = 阈值
+        // Distance 0.55 = Threshold / 距离 0.55 = 阈值
         const score = Math.max(0, 1 - (bestMatch.distance / CONFIG.DISTANCE_THRESHOLD));
         confidence = Math.floor(score * 100); 
       } else {
-         // Even if unknown, show how close it was
+         // Even if unknown, show how close it was relative to 1.0 distance
          // 即使是陌生人，也显示一下接近程度
-         confidence = Math.floor((1 - bestMatch.distance) * 100); 
+         confidence = Math.floor((1 - Math.min(1, bestMatch.distance)) * 100); 
       }
     }
 
