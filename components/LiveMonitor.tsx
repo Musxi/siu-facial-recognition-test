@@ -13,6 +13,14 @@ interface LiveMonitorProps {
 
 type LoadingError = 'NETWORK' | 'CAMERA' | null;
 
+// Icons for the ID Card
+const Icons = {
+  User: () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
+  Age: () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  Gender: () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>, // Generic cross-hair like
+  Expression: () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+}
+
 const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, threshold }) => {
   const t = translations[lang];
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -91,7 +99,11 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
                     timestamp: Date.now(),
                     personName: det.name,
                     confidence: det.confidence,
-                    isUnknown: !det.identified
+                    isUnknown: !det.identified,
+                    // Capture Demographics for Analytics
+                    age: det.age,
+                    gender: det.gender,
+                    expression: det.expressions?.[0]?.expression
                   };
                   onLogEntry(newLog);
                   setRecentLogs(prev => [newLog, ...prev].slice(0, 15));
@@ -175,65 +187,84 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
 
             {/* Bounding Boxes */}
             <div className="absolute inset-0 transform scale-x-[-1]"> 
-              {detections.map((det, idx) => (
-                <div 
-                  key={idx}
-                  className={`absolute flex flex-col transition-all duration-75 ease-linear ${
-                    det.identified 
-                      ? 'border-2 border-green-400 shadow-[0_0_20px_rgba(74,222,128,0.3)]' 
-                      : 'border-2 border-red-500/50 border-dashed'
-                  }`}
-                  style={getBoxStyle(det.box_2d)}
-                >
-                  {/* Name Tag */}
-                  <div className={`absolute -top-6 left-0 flex items-center px-2 py-0.5 whitespace-nowrap transform scale-x-[-1] origin-bottom-left ${det.identified ? 'bg-green-500 text-black' : 'bg-red-600 text-white'}`}>
-                     <span className="font-bold text-xs">
-                       {/* Localized UNKNOWN */}
-                       {det.identified ? det.name : t.unknown}
-                     </span>
-                     <span className="ml-2 text-[10px] bg-black/20 px-1 rounded">
-                       {det.confidence}%
-                     </span>
-                  </div>
-
-                  {/* Demographics Card (Bottom) - Combined & Standardized */}
-                  {(det.age !== undefined || det.gender || (det.expressions && det.expressions[0])) && (
-                    <div className="absolute top-full left-0 mt-2 bg-gray-900/90 backdrop-blur border border-gray-600 rounded p-2 shadow-xl transform scale-x-[-1] origin-top-left min-w-[110px] z-20">
-                      <div className="flex flex-col gap-1 text-[10px] leading-relaxed">
-                        
-                        {/* Age */}
-                        {det.age !== undefined && (
-                           <div className="flex justify-between items-center gap-3 border-b border-gray-700/50 pb-0.5 mb-0.5">
-                              <span className="text-gray-400">{t.ageLabel}</span>
-                              <span className="text-cyan-300 font-mono font-bold">{Math.round(det.age)} <span className="text-[9px] text-gray-500">{t.ageUnit}</span></span>
-                           </div>
-                        )}
-                        
-                        {/* Gender */}
-                        {det.gender && (
-                           <div className="flex justify-between items-center gap-3 border-b border-gray-700/50 pb-0.5 mb-0.5">
-                              <span className="text-gray-400">{t.genderLabel}</span>
-                              <span className={det.gender === 'male' ? 'text-blue-400 font-bold' : 'text-pink-400 font-bold'}>
-                                {getGenderLabel(det.gender)}
+              {detections.map((det, idx) => {
+                const isIdentified = det.identified;
+                const borderColor = isIdentified ? 'border-green-400' : 'border-red-500/50';
+                const shadow = isIdentified ? 'shadow-[0_0_20px_rgba(74,222,128,0.3)]' : '';
+                
+                return (
+                  <div 
+                    key={idx}
+                    className={`absolute flex flex-col transition-all duration-75 ease-linear border-2 ${borderColor} ${shadow}`}
+                    style={getBoxStyle(det.box_2d)}
+                  >
+                    {/* 
+                       UNIFIED CARD: Replaces separate top/bottom badges. 
+                       Positioned below the face box.
+                       Flip scale again to read text normally.
+                    */}
+                    <div className="absolute top-full left-0 mt-1 min-w-[140px] transform scale-x-[-1] origin-top-left z-20">
+                       <div className="bg-gray-900/90 backdrop-blur border border-gray-600 rounded-lg shadow-2xl overflow-hidden flex flex-col">
+                          
+                          {/* HEADER: Name & Confidence */}
+                          <div className={`px-3 py-1.5 flex justify-between items-center border-b border-gray-700 ${isIdentified ? 'bg-green-900/40' : 'bg-red-900/40'}`}>
+                              <div className="flex items-center gap-2">
+                                  <span className={`font-bold text-sm ${isIdentified ? 'text-green-400' : 'text-red-400'}`}>
+                                      {isIdentified ? det.name : t.unknown}
+                                  </span>
+                              </div>
+                              <span className="text-[10px] font-mono text-gray-400 bg-black/40 px-1 rounded">
+                                  {det.confidence}%
                               </span>
-                           </div>
-                        )}
+                          </div>
 
-                        {/* Expression */}
-                        {det.expressions && det.expressions[0] && (
-                           <div className="flex justify-between items-center gap-3">
-                              <span className="text-gray-400">{t.expressionLabel}</span>
-                              <span className="text-yellow-400 font-bold uppercase tracking-wide">
-                                {getExpressionLabel(det.expressions[0].expression)}
-                              </span>
-                           </div>
-                        )}
-                      </div>
+                          {/* BODY: Merged Demographics */}
+                          <div className="p-2 flex flex-col gap-1.5">
+                              {/* Age Row */}
+                              {det.age !== undefined && (
+                                  <div className="flex items-center justify-between text-[11px] gap-3">
+                                      <div className="flex items-center gap-1.5 text-gray-400">
+                                          <Icons.Age />
+                                          <span>{t.ageLabel}:</span>
+                                      </div>
+                                      <span className="text-cyan-300 font-mono font-bold tracking-wide">
+                                          {Math.round(det.age)} <span className="text-[9px] text-gray-500 font-normal">{t.ageUnit}</span>
+                                      </span>
+                                  </div>
+                              )}
+
+                              {/* Gender Row */}
+                              {det.gender && (
+                                  <div className="flex items-center justify-between text-[11px] gap-3">
+                                      <div className="flex items-center gap-1.5 text-gray-400">
+                                          <Icons.Gender />
+                                          <span>{t.genderLabel}:</span>
+                                      </div>
+                                      <span className={det.gender === 'male' ? 'text-blue-400 font-bold' : 'text-pink-400 font-bold'}>
+                                          {getGenderLabel(det.gender)}
+                                      </span>
+                                  </div>
+                              )}
+
+                              {/* Expression Row */}
+                              {det.expressions && det.expressions[0] && (
+                                  <div className="flex items-center justify-between text-[11px] gap-3">
+                                      <div className="flex items-center gap-1.5 text-gray-400">
+                                          <Icons.Expression />
+                                          <span>{t.expressionLabel}:</span>
+                                      </div>
+                                      <span className="text-yellow-400 font-bold uppercase text-[10px]">
+                                          {getExpressionLabel(det.expressions[0].expression)}
+                                      </span>
+                                  </div>
+                              )}
+                          </div>
+                       </div>
                     </div>
-                  )}
 
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           </div>
 

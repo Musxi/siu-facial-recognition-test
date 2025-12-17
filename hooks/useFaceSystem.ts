@@ -18,7 +18,7 @@ export const useFaceSystem = () => {
     }
   });
 
-  // Load Threshold / 加载阈值
+  // Load Threshold / 加载识别阈值
   const [threshold, setThreshold] = useState<number>(() => {
     const saved = localStorage.getItem('face-guard-threshold');
     return saved ? parseFloat(saved) : 0.55;
@@ -28,7 +28,16 @@ export const useFaceSystem = () => {
 
   // Persist Profiles / 持久化档案
   useEffect(() => {
-    localStorage.setItem('face-guard-profiles', JSON.stringify(profiles));
+    try {
+      localStorage.setItem('face-guard-profiles', JSON.stringify(profiles));
+    } catch (e) {
+      console.error("LocalStorage Save Failed", e);
+      // Safe guard: Notify user if storage is full (usually ~5MB limit)
+      // 安全保护：如果存储空间已满（通常约 5MB），通知用户
+      if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+        alert("⚠️ Storage Full! Some data may not be saved. Please delete old profiles.\n⚠️ 存储空间已满！部分数据可能未保存，请删除旧档案。");
+      }
+    }
   }, [profiles]);
 
   // Persist Threshold / 持久化阈值
@@ -59,7 +68,7 @@ export const useFaceSystem = () => {
   }, []);
 
   /**
-   * Active Learning: Add Sample / 主动学习：添加样本
+   * Active Learning: Add Sample / 主动学习：添加训练样本
    */
   const addSampleToProfile = useCallback((id: string, image: string, descriptor: number[]) => {
     setProfiles(prev => prev.map(p => {
@@ -100,6 +109,7 @@ export const useFaceSystem = () => {
   const addLog = useCallback((log: RecognitionLog) => {
     setLogs(prev => {
       // Debounce: Don't log same person within 1.5 seconds
+      // 防抖：1.5秒内不重复记录同一人
       if (prev.length > 0) {
         const last = prev[0];
         if (last.personName === log.personName && (log.timestamp - last.timestamp) < 1500) {

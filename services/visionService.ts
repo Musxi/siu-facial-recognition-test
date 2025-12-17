@@ -2,16 +2,17 @@ import { PersonProfile, FaceDetection } from "../types";
 
 /**
  * REAL AI VISION ENGINE (Powered by face-api.js)
- * 真实AI视觉引擎 (基于 face-api.js / TensorFlow.js)
+ * 真实 AI 视觉引擎 (基于 face-api.js / TensorFlow.js)
  */
 
-declare const faceapi: any; // Global from CDN (in index.html)
+declare const faceapi: any; // Global from CDN (in index.html) / 来自 CDN 的全局变量
 
 let isCriticalModelsLoaded = false;
-let isDemographicsLoaded = false; // Flag for optional models
+let isDemographicsLoaded = false; // Flag for optional models / 可选模型加载标记
 let faceMatcher: any = null;
 
 // Cache state to prevent rebuilding Matcher every frame
+// 缓存状态，防止每帧都重建匹配器
 let lastDescriptorCount = -1;
 
 // Configuration / 配置项
@@ -34,6 +35,7 @@ export const loadModels = async (): Promise<boolean> => {
     console.log("Loading Critical Face Models... / 正在加载核心人脸模型...");
     
     // 1. CRITICAL: Detection, Landmarks, Recognition
+    // 1. 核心：检测、关键点、识别
     await Promise.all([
       faceapi.nets.ssdMobilenetv1.loadFromUri(CONFIG.MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(CONFIG.MODEL_URL),
@@ -45,6 +47,8 @@ export const loadModels = async (): Promise<boolean> => {
 
     // 2. OPTIONAL: Demographics (Age, Gender, Expressions)
     // We try to load these, but if they fail, we don't crash the app.
+    // 2. 可选：人口统计学（年龄、性别、表情）
+    // 尝试加载这些模型，如果失败，不会导致应用崩溃。
     try {
         console.log("Loading Demographic Models... / 正在加载人口统计学模型...");
         await Promise.all([
@@ -82,6 +86,7 @@ export const extractFaceDescriptor = async (imageElement: HTMLImageElement | HTM
 
 /**
  * Build/Update the Face Matcher from Profiles
+ * 根据用户档案构建或更新人脸匹配器
  */
 const updateFaceMatcher = (profiles: PersonProfile[], threshold: number) => {
   const currentDescriptorCount = profiles.reduce((acc, p) => acc + p.descriptors.length, 0);
@@ -90,7 +95,7 @@ const updateFaceMatcher = (profiles: PersonProfile[], threshold: number) => {
     return;
   }
 
-  console.log(`Updating AI Matcher with ${currentDescriptorCount} vectors...`);
+  console.log(`Updating AI Matcher with ${currentDescriptorCount} vectors... / 正在使用 ${currentDescriptorCount} 个向量更新 AI 匹配器...`);
 
   const labeledDescriptors: any[] = [];
 
@@ -114,6 +119,7 @@ const updateFaceMatcher = (profiles: PersonProfile[], threshold: number) => {
 
 /**
  * Real-time Face Detection & Recognition
+ * 实时人脸检测与识别
  */
 export const detectFacesReal = async (
   video: HTMLVideoElement,
@@ -125,6 +131,8 @@ export const detectFacesReal = async (
 
   // 1. Chain detection tasks based on available models
   // Only use models that successfully loaded
+  // 1. 根据可用模型链接检测任务
+  // 仅使用成功加载的模型
   let task = faceapi.detectAllFaces(video).withFaceLandmarks().withFaceDescriptors();
   
   if (isDemographicsLoaded) {
@@ -136,9 +144,11 @@ export const detectFacesReal = async (
   if (!detections.length) return [];
 
   // 2. Update Matcher (passing current threshold)
+  // 2. 更新匹配器（传入当前阈值）
   updateFaceMatcher(profiles, threshold);
 
   // 3. Match
+  // 3. 执行匹配
   const results: FaceDetection[] = detections.map((d: any) => {
     let name = "Unknown";
     let confidence = 0;
@@ -146,9 +156,11 @@ export const detectFacesReal = async (
 
     if (faceMatcher) {
       // Find match
+      // 查找最佳匹配
       const bestMatch = faceMatcher.findBestMatch(d.descriptor);
       
       // Manual Threshold Check
+      // 手动阈值检查
       if (bestMatch.distance < threshold) {
         name = bestMatch.label;
         identified = true;
@@ -160,6 +172,7 @@ export const detectFacesReal = async (
     }
 
     // 4. Normalize Box
+    // 4. 标准化边界框
     const box = d.detection.box; 
     const vW = video.videoWidth || 640;
     const vH = video.videoHeight || 480;
@@ -167,6 +180,7 @@ export const detectFacesReal = async (
     const scaleY = 1000 / vH;
 
     // 5. Extract Demographics if available
+    // 5. 提取人口统计学特征（如果可用）
     let age, gender, expressions;
     if (isDemographicsLoaded && d.age) {
         age = Math.round(d.age);

@@ -9,7 +9,7 @@ export const translations = {
     configTitle: "System Configuration",
     langSelect: "Language Selection",
     tabTrain: "Face Database",
-    tabStats: "Analytics",
+    tabStats: "Business Intelligence", // Changed from Analytics to Business Intelligence
     thresholdLabel: "Recognition Threshold",
     
     // Registration & Training
@@ -41,10 +41,10 @@ export const translations = {
     btnDelete: "Delete",
     noProfiles: "No profiles found.",
     
-    // Charts & Stats
+    // Data Visualization / Analytics
     datasetTitle: "Registered Identities",
     chartDataset: "Library Sample Count",
-    chartFreq: "Recognition Frequency (Top 10)",
+    chartFreq: "Top Visitors (Freq)",
     chartTrend: "Confidence Trend",
     totalSamples: "Total Vectors",
     waitingData: "Waiting for real-time data...",
@@ -52,8 +52,18 @@ export const translations = {
     confName: "Confidence Score",
     detectCount: "Detections",
     
+    // New meaningful stats
+    kpiTotal: "Total Traffic",
+    kpiUnknown: "Unknown Rate",
+    kpiAvgAge: "Avg Age",
+    kpiGender: "Gender Ratio",
+    chartActivity: "Hourly Activity (Heatmap)",
+    chartDemographics: "Demographics (Age/Gender)",
+    chartEmotions: "Sentiment Analysis",
+    ageGroup: "Age Group",
+    
     // Table
-    tableTitle: "System Logs",
+    tableTitle: "Access Logs",
     tableTime: "Time",
     tableName: "ID",
     tableConf: "Confidence",
@@ -89,7 +99,7 @@ export const translations = {
     ageLabel: "Age",
     genderLabel: "Gender",
     expressionLabel: "Expression",
-    ageUnit: "yrs",
+    ageUnit: "years", 
 
     // Demographics & Expressions values
     genders: {
@@ -126,7 +136,7 @@ export const translations = {
     configTitle: "系统配置",
     langSelect: "语言选择",
     tabTrain: "人脸库管理",
-    tabStats: "数据分析",
+    tabStats: "业务数据看板", // More professional than "数据分析"
     thresholdLabel: "识别阈值",
     
     // Registration & Training
@@ -158,19 +168,29 @@ export const translations = {
     btnDelete: "删除",
     noProfiles: "暂无档案。",
     
-    // Charts & Stats
+    // Data Visualization
     datasetTitle: "已注册身份列表",
     chartDataset: "人脸库样本数量统计", 
-    chartFreq: "识别频率统计 (Top 10)",
+    chartFreq: "高频访客排行 (Top 10)",
     chartTrend: "置信度趋势",
     totalSamples: "特征向量总数",
     waitingData: "等待实时数据...",
     noLogs: "暂无识别记录。",
     confName: "置信度评分",
     detectCount: "识别次数",
+
+    // New meaningful stats
+    kpiTotal: "今日总流量",
+    kpiUnknown: "陌生人占比 (风险)",
+    kpiAvgAge: "平均年龄",
+    kpiGender: "性别比例",
+    chartActivity: "分时段客流热度 (24H)",
+    chartDemographics: "人群画像 (年龄/性别)",
+    chartEmotions: "情绪/满意度分析",
+    ageGroup: "年龄段",
     
     // Table
-    tableTitle: "系统日志",
+    tableTitle: "访问日志",
     tableTime: "时间",
     tableName: "身份ID",
     tableConf: "置信度",
