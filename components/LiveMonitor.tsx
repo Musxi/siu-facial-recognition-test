@@ -8,16 +8,15 @@ interface LiveMonitorProps {
   profiles: PersonProfile[];
   onLogEntry: (log: RecognitionLog) => void;
   lang: Language;
-  threshold: number; // New Prop for Accuracy Tuning
+  threshold: number;
 }
 
 type LoadingError = 'NETWORK' | 'CAMERA' | null;
 
-// Icons for the ID Card
 const Icons = {
   User: () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
   Age: () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-  Gender: () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>, // Generic cross-hair like
+  Gender: () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
   Expression: () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
 }
 
@@ -25,110 +24,125 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
   const t = translations[lang];
   const videoRef = useRef<HTMLVideoElement>(null);
   
-  // State
+  // Use a ref to track mounted state (safest for async loops)
+  const isMountedRef = useRef(true);
+  
   const [detections, setDetections] = useState<FaceDetection[]>([]);
   const [recentLogs, setRecentLogs] = useState<RecognitionLog[]>([]);
   const [fps, setFps] = useState(0);
   const [isModelsLoaded, setIsModelsLoaded] = useState(false);
   const [loadingError, setLoadingError] = useState<LoadingError>(null);
 
-  // Animation Frame Loop
   useEffect(() => {
+    isMountedRef.current = true;
     let animationFrameId: number;
+    let isProcessing = false;
     let lastTime = performance.now();
     let frameCount = 0;
     let lastFpsTime = lastTime;
-    let isProcessing = false;
 
     const startSystem = async () => {
       // 1. Load Models
-      const loaded = await loadModels();
-      if (!loaded) {
-        setLoadingError('NETWORK');
-        return;
-      }
-      setIsModelsLoaded(true);
-
-      // 2. Start Camera
       try {
+        const loaded = await loadModels();
+        if (!isMountedRef.current) return;
+        
+        if (!loaded) {
+          setLoadingError('NETWORK');
+          return;
+        }
+        setIsModelsLoaded(true);
+
+        // 2. Start Camera
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' } 
         });
+
+        if (!isMountedRef.current) {
+            stream.getTracks().forEach(t => t.stop());
+            return;
+        }
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          // Wait for video to be ready
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play();
-            loop();
+          // Wait for data before looping
+          videoRef.current.onloadeddata = () => {
+            if (isMountedRef.current && videoRef.current) {
+                videoRef.current.play().catch(e => console.error("Play error", e));
+                loop();
+            }
           };
         }
       } catch (e) {
-        console.error("Camera error", e);
-        setLoadingError('CAMERA');
+        console.error("System start error", e);
+        if (isMountedRef.current) setLoadingError('CAMERA');
       }
     };
 
     const loop = async () => {
-      if (!videoRef.current) return;
+      if (!isMountedRef.current || !videoRef.current) return;
 
       const now = performance.now();
       frameCount++;
-
-      // FPS Calc
       if (now - lastFpsTime >= 1000) {
         setFps(frameCount);
         frameCount = 0;
         lastFpsTime = now;
       }
 
-      // Detection Loop (Throttled slightly to prevent UI freeze)
       if (!isProcessing) {
         isProcessing = true;
         try {
-          // REAL Detection call with dynamic threshold
           const results = await detectFacesReal(videoRef.current, profiles, threshold);
-          setDetections(results);
-
-          // Logging
-          if (results.length > 0) { 
-            results.forEach(det => {
-              // Only log if we have a solid ID or it's a clear face
-              if (det.identified || det.confidence > 50) {
-                  const newLog: RecognitionLog = {
-                    id: uuidv4(),
-                    timestamp: Date.now(),
-                    personName: det.name,
-                    confidence: det.confidence,
-                    isUnknown: !det.identified,
-                    // Capture Demographics for Analytics
-                    age: det.age,
-                    gender: det.gender,
-                    expression: det.expressions?.[0]?.expression
-                  };
-                  onLogEntry(newLog);
-                  setRecentLogs(prev => [newLog, ...prev].slice(0, 15));
-              }
-            });
+          
+          if (isMountedRef.current) {
+             setDetections(results);
+             
+             // Process logs
+             if (results.length > 0) { 
+               results.forEach(det => {
+                 if (det.identified || det.confidence > 50) {
+                     const newLog: RecognitionLog = {
+                       id: uuidv4(),
+                       timestamp: Date.now(),
+                       personName: det.name,
+                       confidence: det.confidence,
+                       isUnknown: !det.identified,
+                       age: det.age,
+                       gender: det.gender,
+                       expression: det.expressions?.[0]?.expression
+                     };
+                     onLogEntry(newLog);
+                     setRecentLogs(prev => [newLog, ...prev].slice(0, 15));
+                 }
+               });
+             }
           }
-        } catch (err) {
-            console.warn("Detection frame dropped", err);
+        } catch (e) {
+          // Ignore errors during detection
+        } finally {
+          isProcessing = false;
         }
-        isProcessing = false;
       }
 
-      animationFrameId = requestAnimationFrame(loop);
+      if (isMountedRef.current) {
+        animationFrameId = requestAnimationFrame(loop);
+      }
     };
 
     startSystem();
 
     return () => {
+      isMountedRef.current = false;
       cancelAnimationFrame(animationFrameId);
-      const stream = videoRef.current?.srcObject as MediaStream;
-      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(t => t.stop());
+        videoRef.current.srcObject = null;
+      }
     };
   }, [profiles, onLogEntry, threshold]);
 
-  // Style helper
   const getBoxStyle = (box: number[]) => {
     const [ymin, xmin, ymax, xmax] = box;
     return {
@@ -145,13 +159,11 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
     return t.initializing;
   };
 
-  // Helper to translate Gender
   const getGenderLabel = (gender: string) => {
       // @ts-ignore
       return t.genders[gender] || gender;
   };
 
-  // Helper to translate Expression
   const getExpressionLabel = (expr: string) => {
       // @ts-ignore
       return t.expressions[expr] || expr;
@@ -180,12 +192,11 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
             className="w-full h-full object-cover transform scale-x-[-1]" 
           />
           
-          {/* AR Overlay */}
+          {/* AR Overlay - Only render if detections exist to save resources */}
           <div className="absolute inset-0 pointer-events-none">
             {/* Center Reticle */}
             <div className="absolute top-1/2 left-1/2 w-12 h-12 -ml-6 -mt-6 border border-cyan-500/20 rounded-full"></div>
 
-            {/* Bounding Boxes */}
             <div className="absolute inset-0 transform scale-x-[-1]"> 
               {detections.map((det, idx) => {
                 const isIdentified = det.identified;
@@ -194,19 +205,12 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
                 
                 return (
                   <div 
-                    key={idx}
+                    key={idx} // Using index is okay here as they are transient
                     className={`absolute flex flex-col transition-all duration-75 ease-linear border-2 ${borderColor} ${shadow}`}
                     style={getBoxStyle(det.box_2d)}
                   >
-                    {/* 
-                       UNIFIED CARD: Replaces separate top/bottom badges. 
-                       Positioned below the face box.
-                       Flip scale again to read text normally.
-                    */}
                     <div className="absolute top-full left-0 mt-1 min-w-[140px] transform scale-x-[-1] origin-top-left z-20">
                        <div className="bg-gray-900/90 backdrop-blur border border-gray-600 rounded-lg shadow-2xl overflow-hidden flex flex-col">
-                          
-                          {/* HEADER: Name & Confidence */}
                           <div className={`px-3 py-1.5 flex justify-between items-center border-b border-gray-700 ${isIdentified ? 'bg-green-900/40' : 'bg-red-900/40'}`}>
                               <div className="flex items-center gap-2">
                                   <span className={`font-bold text-sm ${isIdentified ? 'text-green-400' : 'text-red-400'}`}>
@@ -217,10 +221,7 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
                                   {det.confidence}%
                               </span>
                           </div>
-
-                          {/* BODY: Merged Demographics */}
                           <div className="p-2 flex flex-col gap-1.5">
-                              {/* Age Row */}
                               {det.age !== undefined && (
                                   <div className="flex items-center justify-between text-[11px] gap-3">
                                       <div className="flex items-center gap-1.5 text-gray-400">
@@ -232,8 +233,6 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
                                       </span>
                                   </div>
                               )}
-
-                              {/* Gender Row */}
                               {det.gender && (
                                   <div className="flex items-center justify-between text-[11px] gap-3">
                                       <div className="flex items-center gap-1.5 text-gray-400">
@@ -245,8 +244,6 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
                                       </span>
                                   </div>
                               )}
-
-                              {/* Expression Row */}
                               {det.expressions && det.expressions[0] && (
                                   <div className="flex items-center justify-between text-[11px] gap-3">
                                       <div className="flex items-center gap-1.5 text-gray-400">
@@ -261,7 +258,6 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
                           </div>
                        </div>
                     </div>
-
                   </div>
                 );
               })}
@@ -271,7 +267,6 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
           {/* System Info HUD */}
           <div className="absolute top-4 left-4 font-mono text-xs text-cyan-500 bg-black/70 px-4 py-2 rounded border-l-2 border-cyan-500 backdrop-blur-sm">
             <div className="flex flex-col gap-1">
-              {/* Localized HUD Labels */}
               <span className="text-white font-bold">{t.engine}: TFJS_MOBILENET</span>
               <span>{t.fps}: {fps}</span>
               <span>{t.thresholdLabel}: {threshold}</span>
@@ -281,7 +276,7 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
         </div>
       </div>
 
-      {/* RIGHT SIDEBAR (IMPROVED CLARITY) */}
+      {/* RIGHT SIDEBAR */}
       <div className="w-full lg:w-80 bg-gray-900 border-l border-gray-800 flex flex-col z-10 shrink-0 h-[30vh] lg:h-auto">
         <div className="p-4 bg-gray-800 border-b border-gray-700">
            <h3 className="text-cyan-400 font-mono text-xs font-bold tracking-widest uppercase mb-1">
@@ -299,16 +294,12 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
                  </span>
                  <span className="text-gray-500">{new Date(log.timestamp).toLocaleTimeString([], {hour12: false, second: '2-digit'})}</span>
                </div>
-               
-               {/* Explicit Data Label */}
                <div className="flex justify-between items-center text-[10px] text-gray-400">
                    <span>{t.matchScore}</span>
                    <span className={log.confidence > 80 ? 'text-green-400 font-bold' : 'text-yellow-400'}>{log.confidence}%</span>
                </div>
-
                <div className="flex items-center gap-2">
                  <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden relative">
-                    {/* Grid lines for clarity */}
                     <div className="absolute inset-0 flex justify-between px-1">
                         <div className="w-[1px] h-full bg-black/20"></div>
                         <div className="w-[1px] h-full bg-black/20"></div>

@@ -5,102 +5,147 @@ import { PersonProfile, FaceDetection } from "../types";
  * 真实 AI 视觉引擎 (基于 face-api.js / TensorFlow.js)
  */
 
-declare const faceapi: any; // Global from CDN (in index.html) / 来自 CDN 的全局变量
+declare const faceapi: any; // Global from CDN (in index.html)
 
+// SINGLETON STATE
 let isCriticalModelsLoaded = false;
-let isDemographicsLoaded = false; // Flag for optional models / 可选模型加载标记
+let isDemographicsLoaded = false; 
 let faceMatcher: any = null;
-
-// Cache state to prevent rebuilding Matcher every frame
-// 缓存状态，防止每帧都重建匹配器
 let lastDescriptorCount = -1;
 
-// Configuration / 配置项
+// PROMISE CACHE (Prevents double-loading race conditions)
+let loadingPromise: Promise<boolean> | null = null;
+
+// Configuration
 const CONFIG = {
-  // Use jsDelivr CDN for GitHub Master branch to ensure all models (including age/gender) are available.
-  // The previous URL (GitHub Pages) was missing the age_gender_model weights.
-  // 使用 jsDelivr CDN 获取 GitHub Master 分支的权重，确保包含年龄/性别模型。
-  MODEL_URL: 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights',
+  // Switch to GitHub Pages hosting which is often more stable for these static assets than jsDelivr GH proxy
+  // 切换到更稳定的模型源
+  MODEL_URL: 'https://justadudewhohacks.github.io/face-api.js/models',
+  // Fallback URL in case the above fails (optional logic can be added later)
+  // MODEL_URL_BACKUP: 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights',
+  TIMEOUT_MS: 15000 // 15 seconds timeout
+};
+
+// Helper: Timeout Wrapper for Promises
+const withTimeout = (ms: number, promise: Promise<any>) => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Timeout after ${ms}ms`));
+    }, ms);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((reason) => {
+        clearTimeout(timer);
+        reject(reason);
+      });
+  });
 };
 
 /**
- * Load AI Models / 加载 AI 模型
- * Uses a "Safety-First" approach: Critical models must load, extras are optional.
- * 采用“安全优先”策略：核心模型必须加载，增强模型可选。
+ * Load AI Models (Singleton Pattern with Timeout)
+ * 加载 AI 模型（带超时的单例模式）
  */
-export const loadModels = async (): Promise<boolean> => {
-  if (isCriticalModelsLoaded) return true;
+export const loadModels = (): Promise<boolean> => {
+  // 0. Safety Check for Global
+  if (typeof faceapi === 'undefined') {
+    console.error("Face-api.js not loaded. Check index.html or network connection.");
+    return Promise.resolve(false);
+  }
+
+  // 1. If already loaded, return immediately
+  if (isCriticalModelsLoaded) return Promise.resolve(true);
+
+  // 2. If currently loading, return the existing promise
+  if (loadingPromise) return loadingPromise;
+
+  // 3. Start loading
+  loadingPromise = (async () => {
+    try {
+      console.log(`Loading Critical Face Models from ${CONFIG.MODEL_URL}...`);
+      
+      // Load models with strict timeout to prevent hanging
+      await withTimeout(CONFIG.TIMEOUT_MS, Promise.all([
+        faceapi.nets.ssdMobilenetv1.loadFromUri(CONFIG.MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(CONFIG.MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(CONFIG.MODEL_URL)
+      ]));
+      
+      isCriticalModelsLoaded = true;
+      console.log("Critical Models Loaded Successfully.");
+
+      // Load Demographics (Non-blocking / Optional)
+      // We don't await this strictly for the main promise to resolve true, 
+      // but we start it here.
+      withTimeout(CONFIG.TIMEOUT_MS, Promise.all([
+          faceapi.nets.faceExpressionNet.loadFromUri(CONFIG.MODEL_URL),
+          faceapi.nets.ageGenderNet.loadFromUri(CONFIG.MODEL_URL)
+      ]))
+      .then(() => {
+          isDemographicsLoaded = true;
+          console.log("Demographics Loaded.");
+      })
+      .catch(e => console.warn("Demographics skipped:", e));
+
+      return true;
+    } catch (error) {
+      console.error("CRITICAL: Failed to load core models:", error);
+      // IMPORTANT: Reset promise so UI can try again manually if needed
+      loadingPromise = null; 
+      isCriticalModelsLoaded = false;
+      return false;
+    }
+  })();
+
+  return loadingPromise;
+};
+
+/**
+ * Extract Feature Vector from an Image
+ */
+export const extractFaceDescriptor = async (imageElement: HTMLImageElement | HTMLVideoElement): Promise<Float32Array | null> => {
+  if (!isCriticalModelsLoaded) {
+      // Try loading one last time
+      const success = await loadModels();
+      if (!success) return null;
+  }
 
   try {
-    console.log("Loading Critical Face Models... / 正在加载核心人脸模型...");
-    
-    // 1. CRITICAL: Detection, Landmarks, Recognition
-    // 1. 核心：检测、关键点、识别
-    await Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromUri(CONFIG.MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(CONFIG.MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(CONFIG.MODEL_URL)
-    ]);
-    
-    isCriticalModelsLoaded = true;
-    console.log("Critical Models Loaded. / 核心模型加载完毕。");
+      // Ensure element is valid and ready
+      if (imageElement instanceof HTMLVideoElement && (imageElement.paused || imageElement.ended || !imageElement.videoWidth)) {
+        return null;
+      }
 
-    // 2. OPTIONAL: Demographics (Age, Gender, Expressions)
-    // We try to load these, but if they fail, we don't crash the app.
-    // 2. 可选：人口统计学（年龄、性别、表情）
-    // 尝试加载这些模型，如果失败，不会导致应用崩溃。
-    try {
-        console.log("Loading Demographic Models... / 正在加载人口统计学模型...");
-        await Promise.all([
-            faceapi.nets.faceExpressionNet.loadFromUri(CONFIG.MODEL_URL),
-            faceapi.nets.ageGenderNet.loadFromUri(CONFIG.MODEL_URL)
-        ]);
-        isDemographicsLoaded = true;
-        console.log("Demographics Loaded. / 人口统计学模型加载完毕。");
-    } catch (demoError) {
-        console.warn("Demographics failed to load (Non-fatal). / 人口统计学模型加载失败 (非致命错误)", demoError);
-        // Do not set isDemographicsLoaded to true
-        isDemographicsLoaded = false;
-    }
+      const detection = await faceapi.detectSingleFace(imageElement)
+        .withFaceLandmarks()
+        .withFaceDescriptor();
 
-    return true;
-  } catch (error) {
-    console.error("CRITICAL: Failed to load core models / 致命错误: 核心模型加载失败:", error);
-    return false;
+      if (!detection) return null;
+      return detection.descriptor;
+  } catch (e) {
+      console.error("Extraction error:", e);
+      return null;
   }
 };
 
 /**
- * Extract Feature Vector from an Image / 从图像提取特征向量
- */
-export const extractFaceDescriptor = async (imageElement: HTMLImageElement | HTMLVideoElement): Promise<Float32Array | null> => {
-  if (!isCriticalModelsLoaded) await loadModels();
-
-  const detection = await faceapi.detectSingleFace(imageElement)
-    .withFaceLandmarks()
-    .withFaceDescriptor();
-
-  if (!detection) return null;
-  return detection.descriptor;
-};
-
-/**
- * Build/Update the Face Matcher from Profiles
- * 根据用户档案构建或更新人脸匹配器
+ * Build/Update the Face Matcher
  */
 const updateFaceMatcher = (profiles: PersonProfile[], threshold: number) => {
+  if (!faceapi) return;
+
   const currentDescriptorCount = profiles.reduce((acc, p) => acc + p.descriptors.length, 0);
   
   if (currentDescriptorCount === lastDescriptorCount && faceMatcher) {
     return;
   }
 
-  console.log(`Updating AI Matcher with ${currentDescriptorCount} vectors... / 正在使用 ${currentDescriptorCount} 个向量更新 AI 匹配器...`);
-
   const labeledDescriptors: any[] = [];
-
   profiles.forEach(p => {
     if (p.descriptors && p.descriptors.length > 0) {
+        // Convert plain arrays back to Float32Array for face-api
         const vectors = p.descriptors.map(d => new Float32Array(d));
         labeledDescriptors.push(
             new faceapi.LabeledFaceDescriptors(p.name, vectors)
@@ -119,7 +164,6 @@ const updateFaceMatcher = (profiles: PersonProfile[], threshold: number) => {
 
 /**
  * Real-time Face Detection & Recognition
- * 实时人脸检测与识别
  */
 export const detectFacesReal = async (
   video: HTMLVideoElement,
@@ -127,82 +171,75 @@ export const detectFacesReal = async (
   threshold: number = 0.55
 ): Promise<FaceDetection[]> => {
   
-  if (!isCriticalModelsLoaded || !video || video.paused || video.ended) return [];
+  if (!isCriticalModelsLoaded || !video || video.paused || video.ended || !faceapi) return [];
 
-  // 1. Chain detection tasks based on available models
-  // Only use models that successfully loaded
-  // 1. 根据可用模型链接检测任务
-  // 仅使用成功加载的模型
-  let task = faceapi.detectAllFaces(video).withFaceLandmarks().withFaceDescriptors();
-  
-  if (isDemographicsLoaded) {
-      task = task.withFaceExpressions().withAgeAndGender();
-  }
+  try {
+    // 1. Detection
+    // Use lightweight detection options if possible for speed, but SSD is standard in this app
+    let task = faceapi.detectAllFaces(video).withFaceLandmarks().withFaceDescriptors();
+    
+    if (isDemographicsLoaded) {
+        task = task.withFaceExpressions().withAgeAndGender();
+    }
 
-  const detections = await task;
+    const detections = await task;
+    if (!detections.length) return [];
 
-  if (!detections.length) return [];
+    // 2. Update Matcher (Sync)
+    updateFaceMatcher(profiles, threshold);
 
-  // 2. Update Matcher (passing current threshold)
-  // 2. 更新匹配器（传入当前阈值）
-  updateFaceMatcher(profiles, threshold);
+    // 3. Match
+    const results: FaceDetection[] = detections.map((d: any) => {
+      let name = "Unknown";
+      let confidence = 0;
+      let identified = false;
 
-  // 3. Match
-  // 3. 执行匹配
-  const results: FaceDetection[] = detections.map((d: any) => {
-    let name = "Unknown";
-    let confidence = 0;
-    let identified = false;
-
-    if (faceMatcher) {
-      // Find match
-      // 查找最佳匹配
-      const bestMatch = faceMatcher.findBestMatch(d.descriptor);
-      
-      // Manual Threshold Check
-      // 手动阈值检查
-      if (bestMatch.distance < threshold) {
-        name = bestMatch.label;
-        identified = true;
-        const score = Math.max(0, 1 - (bestMatch.distance / threshold));
-        confidence = Math.floor(score * 100); 
-      } else {
-         confidence = Math.floor((1 - Math.min(1, bestMatch.distance)) * 100); 
+      if (faceMatcher) {
+        const bestMatch = faceMatcher.findBestMatch(d.descriptor);
+        if (bestMatch.distance < threshold) {
+          name = bestMatch.label;
+          identified = true;
+          const score = Math.max(0, 1 - (bestMatch.distance / threshold));
+          confidence = Math.floor(score * 100); 
+        } else {
+           confidence = Math.floor((1 - Math.min(1, bestMatch.distance)) * 100); 
+        }
       }
-    }
 
-    // 4. Normalize Box
-    // 4. 标准化边界框
-    const box = d.detection.box; 
-    const vW = video.videoWidth || 640;
-    const vH = video.videoHeight || 480;
-    const scaleX = 1000 / vW;
-    const scaleY = 1000 / vH;
+      // 4. Normalize Box
+      const box = d.detection.box; 
+      const vW = video.videoWidth || 640;
+      const vH = video.videoHeight || 480;
+      // Safety div by zero check
+      const scaleX = vW > 0 ? 1000 / vW : 1;
+      const scaleY = vH > 0 ? 1000 / vH : 1;
 
-    // 5. Extract Demographics if available
-    // 5. 提取人口统计学特征（如果可用）
-    let age, gender, expressions;
-    if (isDemographicsLoaded && d.age) {
-        age = Math.round(d.age);
-        gender = d.gender;
-        expressions = d.expressions.asSortedArray();
-    }
+      let age, gender, expressions;
+      if (isDemographicsLoaded && d.age) {
+          age = Math.round(d.age);
+          gender = d.gender;
+          expressions = d.expressions.asSortedArray();
+      }
 
-    return {
-      identified,
-      name,
-      confidence,
-      box_2d: [
-        box.y * scaleY,
-        box.x * scaleX,
-        (box.y + box.height) * scaleY,
-        (box.x + box.width) * scaleX
-      ],
-      age,
-      gender,
-      expressions
-    };
-  });
+      return {
+        identified,
+        name,
+        confidence,
+        box_2d: [
+          box.y * scaleY,
+          box.x * scaleX,
+          (box.y + box.height) * scaleY,
+          (box.x + box.width) * scaleX
+        ],
+        age,
+        gender,
+        expressions
+      };
+    });
 
-  return results;
+    return results;
+  } catch (err) {
+    console.warn("Face detection pipeline skipped frame:", err);
+    return [];
+  }
 };
