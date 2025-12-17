@@ -42,8 +42,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   // -- MODAL STATE --
-  const [editingProfile, setEditingProfile] = useState<PersonProfile | null>(null);
+  // FIX: Store ID instead of full object to ensure real-time updates from parent state
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteState | null>(null);
+
+  // Derived state: Always get the latest profile data from props
+  const editingProfile = profiles.find(p => p.id === editingProfileId) || null;
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -85,7 +89,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       if (!isMountedRef.current) {
-          // Component unmounted while waiting for camera, stop immediately
           stream.getTracks().forEach(t => t.stop());
           return;
       }
@@ -115,7 +118,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (!videoRef.current) return;
     
     if (!modelsReady) {
-        // Retry loading logic
         setLoadingError(false);
         const ready = await loadModels();
         if (isMountedRef.current) setModelsReady(ready);
@@ -172,7 +174,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const openEditModal = (profile: PersonProfile) => {
-      setEditingProfile(profile);
+      setEditingProfileId(profile.id);
   };
 
   const executeDelete = () => {
@@ -184,13 +186,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             setTrainingMode('NEW');
             setSelectedProfileId(null);
         }
-    } else if (deleteConfirm.type === 'SAMPLE' && deleteConfirm.sampleIndex !== undefined) {
-        onRemoveSample(deleteConfirm.id, deleteConfirm.sampleIndex);
-        if (editingProfile && editingProfile.id === deleteConfirm.id) {
-            if (editingProfile.images.length <= 1) {
-                setEditingProfile(null);
-            }
+        // If we deleted the profile currently being edited
+        if (editingProfileId === deleteConfirm.id) {
+            setEditingProfileId(null);
         }
+    } else if (deleteConfirm.type === 'SAMPLE' && deleteConfirm.sampleIndex !== undefined) {
+        // Just call remove; since editingProfile is derived, the UI will auto-update
+        onRemoveSample(deleteConfirm.id, deleteConfirm.sampleIndex);
     }
     setDeleteConfirm(null);
   };
@@ -241,7 +243,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <h3 className="text-xl font-bold text-white">{t.samplesTitle}: <span className="text-cyan-400">{editingProfile.name}</span></h3>
                         <p className="text-sm text-gray-400">{t.samplesDesc}</p>
                     </div>
-                    <button onClick={() => setEditingProfile(null)} className="text-gray-400 hover:text-white text-2xl px-2">
+                    <button onClick={() => setEditingProfileId(null)} className="text-gray-400 hover:text-white text-2xl px-2">
                         &times;
                     </button>
                 </div>
@@ -268,9 +270,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </div>
                         ))}
                     </div>
+                    {editingProfile.images.length === 0 && (
+                        <div className="text-center text-gray-500 py-10">
+                            No samples remaining.
+                        </div>
+                    )}
                 </div>
                 <div className="p-4 border-t border-gray-700 bg-gray-800 rounded-b-xl flex justify-end">
-                    <button onClick={() => setEditingProfile(null)} className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded">
+                    <button onClick={() => setEditingProfileId(null)} className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded">
                         {t.closeModal}
                     </button>
                 </div>
