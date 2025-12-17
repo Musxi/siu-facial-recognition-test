@@ -1,0 +1,24 @@
+{
+  "_instructions_en": "Modify the values below to customize the app. DO NOT change the keys (e.g., 'appName').",
+  "_instructions_zh": "修改下方的值以自定义应用。请勿修改键名（例如 'appName'）。",
+  
+  "_field_desc_appName": "Project Name shown in the header / 顶部显示的项目名称",
+  "appName": "Face Guard Pro",
+  
+  "_field_desc_appVersion": "Version string / 版本号",
+  "appVersion": "v2.2",
+  
+  "_field_desc_logoText": "Short text inside the logo box (Max 2 chars) / Logo方块内的简短文字（最多2字符）",
+  "logoText": "FG",
+  
+  "_field_desc_logoColor": "Options: 'cyan', 'purple', 'green', 'blue', 'red' / 颜色选项",
+  "logoColor": "cyan",
+  
+  "_field_desc_defaultLang": "Options: 'en' (English) or 'zh' (Chinese) / 默认语言选项",
+  "defaultLang": "zh",
+  
+  "features": {
+    "_field_desc_showKpis": "Set to true to show the top statistics bar / 设置为 true 以显示顶部统计栏",
+    "showKpis": true
+  }
+}

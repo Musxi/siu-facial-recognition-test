@@ -20,6 +20,11 @@ interface AdminDashboardProps {
 /**
  * CONFIGURATION & MANAGEMENT PANEL
  * 配置与管理面板
+ * 
+ * Provides interface for:
+ * 1. Registering new faces / 注册新人脸
+ * 2. Managing existing profiles (View/Delete) / 管理现有档案（查看/删除）
+ * 3. Tuning parameters / 调整参数
  */
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   profiles, logs, onAddProfile, onDeleteProfile, onAddSample, onRemoveSample, 
@@ -34,7 +39,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [modelsReady, setModelsReady] = useState(false);
   
-  // 'NEW' = Creating user, 'TRAIN' = Adding sample
+  // 'NEW' = Creating user, 'TRAIN' = Adding sample to existing user
+  // 'NEW' = 创建新用户，'TRAIN' = 为现有用户添加样本
   const [trainingMode, setTrainingMode] = useState<'NEW' | 'TRAIN'>('NEW');
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
@@ -60,7 +66,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch(e) { alert("Camera Error"); }
   };
 
-  // Handle Capture & Processing / 处理捕获与分析
+  /**
+   * Core Function: Handle Capture & Processing
+   * 核心功能：处理捕获与分析
+   * 
+   * Steps / 步骤:
+   * 1. Get video frame / 获取视频帧
+   * 2. Use AI to extract 128-d vector / 使用AI提取128维向量
+   * 3. Save to state/storage / 保存到状态/存储
+   */
   const handleCapture = async () => {
     if (trainingMode === 'NEW' && !newName) return alert(t.alertEnterName);
     if (!videoRef.current) return;
@@ -73,12 +87,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const descriptor = await extractFaceDescriptor(videoRef.current);
         
         if (!descriptor) {
-            alert(t.alertNoFace);
+            alert(t.alertNoFace); // "No face detected"
             setIsProcessing(false);
             return;
         }
 
-        // 2. Capture Image / 捕获图片
+        // 2. Capture Image for UI display / 捕获用于UI显示的图片
         if (canvasRef.current) {
             const ctx = canvasRef.current.getContext('2d');
             if (ctx) {
@@ -87,14 +101,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 const vector = Array.from(descriptor);
 
                 if (trainingMode === 'NEW') {
-                   // Create New ID / 创建新身份
+                   // Logic: Create New ID / 逻辑：创建新身份
                    onAddProfile(newName, img, vector);
                    setNewName('');
                    alert(t.alertAdded);
                 } else if (trainingMode === 'TRAIN' && selectedProfileId && onAddSample) {
-                   // Append Sample / 追加样本
+                   // Logic: Append Sample to Existing ID / 逻辑：追加样本到现有身份
                    onAddSample(selectedProfileId, img, vector);
                    alert(t.alertSampleAdded);
+                   // Reset to default mode / 重置为默认模式
                    setTrainingMode('NEW'); 
                    setSelectedProfileId(null);
                 }
@@ -108,6 +123,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  // Switch to "Add Sample" mode for a specific user
+  // 切换到特定用户的“添加样本”模式
   const startTrainingExisting = (id: string) => {
      setSelectedProfileId(id);
      setTrainingMode('TRAIN');
@@ -115,6 +132,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
      window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Open the "Manage Samples" modal
+  // 打开“管理样本”模态框
   const openEditModal = (profile: PersonProfile) => {
       setEditingProfile(profile);
   };
@@ -122,7 +141,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   return (
     <div className="h-full flex flex-col animate-fade-in bg-gray-900 relative">
       
-      {/* SAMPLE MANAGEMENT MODAL / 样本管理模态框 */}
+      {/* ========================================================= */}
+      {/* SAMPLE MANAGEMENT MODAL / 样本管理模态框                  */}
+      {/* Allows deleting specific bad images/vectors               */}
+      {/* 允许删除特定的不良图片/向量                               */}
+      {/* ========================================================= */}
       {editingProfile && (
         <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-gray-800 rounded-xl border border-gray-600 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
@@ -227,10 +250,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
         
-        {/* ============ USER MANAGEMENT TAB ============ */}
+        {/* ============ USER MANAGEMENT TAB / 用户管理标签页 ============ */}
         {activeSubTab === 'users' && (
           <div className="max-w-6xl mx-auto space-y-8 pb-20">
-            {/* 1. Camera / Training Station */}
+            {/* 1. Camera / Training Station / 摄像头/训练工作台 */}
             <div className={`bg-gray-800 rounded-xl p-6 border transition-colors shadow-lg ${trainingMode === 'TRAIN' ? 'border-green-500 ring-1 ring-green-500' : 'border-gray-700'}`}>
               <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
                  <h2 className="text-xl font-bold text-white">
@@ -272,7 +295,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                    <canvas ref={canvasRef} width="320" height="240" className="hidden" />
                 </div>
 
-                {/* Form */}
+                {/* Form / 表单 */}
                 <div className="w-full md:w-1/2 flex flex-col justify-center space-y-4">
                   <div className="bg-gray-700/30 p-4 rounded-lg text-sm text-gray-300 border border-gray-600">
                      {trainingMode === 'NEW' ? (
@@ -317,7 +340,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            {/* 2. Existing Users List */}
+            {/* 2. Existing Users List / 现有用户列表 */}
             <div>
               <div className="flex justify-between items-end mb-4">
                   <h3 className="text-lg font-bold text-gray-300">{t.datasetTitle} <span className="text-cyan-500">({profiles.length})</span></h3>
@@ -326,6 +349,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {profiles.map(p => (
                   <div key={p.id} className={`bg-gray-800 p-4 rounded-xl border hover:border-cyan-500 transition relative group shadow-md ${selectedProfileId === p.id ? 'border-green-500 ring-1 ring-green-500' : 'border-gray-700'}`}>
+                    
+                    {/* Delete Button / 删除按钮 */}
                     <div className="absolute top-2 right-2 z-10 flex gap-1">
                        <button 
                          onClick={(e) => { e.stopPropagation(); if(confirm(t.confirmDeleteProfile)) onDeleteProfile(p.id); }} 
@@ -336,7 +361,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                        </button>
                     </div>
                     
-                    {/* Click Image to Edit Samples */}
+                    {/* Click Image to Edit Samples / 点击图片编辑样本 */}
                     <div 
                         onClick={() => openEditModal(p)}
                         className="w-full h-36 bg-black rounded-lg mb-3 overflow-hidden relative cursor-pointer"
@@ -358,6 +383,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <span className="text-xs text-gray-400 font-mono">
                            N={p.descriptors.length}
                         </span>
+                        {/* Add Sample Button / 添加样本按钮 */}
                         <button 
                            onClick={() => startTrainingExisting(p.id)}
                            className="text-[10px] bg-cyan-900/50 text-cyan-300 border border-cyan-700 px-2 py-1 rounded hover:bg-cyan-800 transition uppercase font-bold"
@@ -377,7 +403,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {/* ============ ANALYTICS TAB ============ */}
+        {/* ============ ANALYTICS TAB / 分析标签页 ============ */}
         {activeSubTab === 'analytics' && (
           <div className="max-w-6xl mx-auto h-full">
              <DataVisualization profiles={profiles} logs={logs} lang={lang} />

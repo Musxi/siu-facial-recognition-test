@@ -5,6 +5,23 @@ export enum AppMode {
   ADMIN = 'ADMIN'      
 }
 
+// Global Configuration Interface
+// 全局配置接口
+export interface AppConfig {
+  appName: string;
+  appVersion: string;
+  logoText: string;
+  logoColor: 'cyan' | 'purple' | 'green' | 'blue' | 'red';
+  defaultLang: 'en' | 'zh';
+  features?: {
+    showKpis?: boolean;
+    [key: string]: any; // Allow for comment fields in features
+  };
+  // Index signature to allow for metadata/instruction fields starting with underscore
+  // 索引签名，允许以下划线开头的元数据/说明字段
+  [key: string]: any;
+}
+
 // Structure for a registered person
 // 注册用户档案结构体
 export interface PersonProfile {
