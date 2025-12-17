@@ -83,6 +83,23 @@ If you see "Hello World" or cannot find "Build output directory", you created a 
 4.  **Save and Deploy**:
     *   Click Deploy. Cloudflare will install dependencies and build your site.
 
+### Troubleshooting: "CLOUDFLARE_API_TOKEN" Error
+### 故障排除：API Token 错误
+
+**Error**: `[ERROR] In a non-interactive environment, it's necessary to set a CLOUDFLARE_API_TOKEN...`
+
+**Cause**: You set the Build Command to `npm run deploy` (which tries to use Wrangler).
+**原因**: 您将构建命令设置为了 `npm run deploy`（该命令试图在构建器内部再次调用 Wrangler 进行部署）。
+
+**Solution**:
+1. Go to Cloudflare Dashboard -> Settings -> Build & deployments.
+2. Change **Build command** to: `npm run build`
+3. Retry deployment.
+**解决方案**:
+1. 进入 Cloudflare 控制台 -> 设置 -> 构建与部署。
+2. 将 **构建命令 (Build command)** 修改为: `npm run build`
+3. 重试部署。
+
 ---
 
 ## 4. Usage Guide / 使用指南
