@@ -5,7 +5,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/NEW_REPO_NAME.git"
+    "url": "https://github.com/Musxi/siu-facial-recognition-test.git"
   },
   "scripts": {
     "dev": "vite",

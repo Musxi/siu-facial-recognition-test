@@ -3,7 +3,7 @@ import { AppConfig } from '../types';
 
 const DEFAULT_CONFIG: AppConfig = {
   appName: "Facial recognition test",
-  appVersion: "v2.3",
+  appVersion: "v0.13",
   logoText: "SIU",
   logoColor: "cyan",
   defaultLang: "zh",

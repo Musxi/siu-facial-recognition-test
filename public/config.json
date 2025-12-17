@@ -6,7 +6,7 @@
   "appName": "Facial recognition test",
   
   "_field_desc_appVersion": "Version string / 版本号",
-  "appVersion": "v2.3",
+  "appVersion": "v0.13",
   
   "_field_desc_logoText": "Short text inside the logo box (Max 3 chars) / Logo方块内的简短文字（最多3字符）",
   "logoText": "SIU",
