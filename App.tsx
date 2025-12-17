@@ -32,7 +32,7 @@ const App: React.FC = () => {
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 bg-cyan-500 rounded-sm flex items-center justify-center font-bold text-black text-xs shadow-[0_0_10px_rgba(6,182,212,0.6)]">68</div>
           <h1 className="text-xl font-bold font-mono tracking-tighter text-gray-100">
-            68344042<span className="text-cyan-500">-4</span>
+            68344042<span className="text-cyan-500">-4</span> <span className="text-xs text-gray-600 ml-1">v2</span>
           </h1>
         </div>
         

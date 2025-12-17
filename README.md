@@ -61,37 +61,51 @@ The system identifies users by calculating the **Euclidean Distance** between th
 
 ---
 
-## 3. Function Manual / 功能说明
+## 3. Deployment Guide (Cloudflare via GitHub) / 部署指南 (通过 GitHub)
 
-### 3.1 Monitor Tab (Live Recognition) / 实时监控
+**IMPORTANT: Please read carefully to avoid the "Hello World" error.**
+**重要：请仔细阅读以避免出现 "Hello World" 错误。**
 
-*   **Main Viewport**: Displays the camera feed with Augmented Reality (AR) overlays.
-    *   **Green Box**: Known person.
-    *   **Red Box**: Unknown person.
-    *   **Info Tag**: Shows Name, Confidence, **Gender**, **Age**, and **Expression**.
-*   **Right Sidebar**: A scrolling log of recent recognitions.
+You encountered an issue where there was no "Build output directory" option. This means you accidentally created a **Worker** instead of a **Page**.
+您之前遇到的“没有构建输出目录选项”的问题，是因为您误创建了 **Worker** 而不是 **Page**。
 
-### 3.2 Config Tab (Management & Analytics) / 配置管理
+### Correct Steps to Deploy / 正确部署步骤
 
-This tab is divided into two sub-sections:
-此标签页分为两个子部分：
+1.  **Commit & Push Code**:
+    *   Ensure the changes to `index.html` (removing importmap) are pushed to your GitHub repository.
+    *   确保已将 `index.html` 的修改（移除 importmap）推送到 GitHub。
 
-#### A. Face Database / 人脸库管理
-*   **Register Identity**: Input a name and capture a photo to create a new ID.
-*   **Training & Optimization**: Select an existing user to add more angles (Active Learning).
-*   **Manage Samples**: Click on a user's card image to view all stored vectors.
+2.  **Go to Cloudflare Dashboard**:
+    *   Navigate to **Workers & Pages** -> **Overview**.
+    *   进入 Cloudflare 控制台 -> **Workers & Pages** -> **概览**。
 
-#### B. Analytics / 数据分析
-*   **Dataset Distribution**: Shows how many training samples each user has.
-*   **Recognition Frequency**: Shows who appears most often.
-*   **Confidence Trend**: Tracks the AI's confidence score.
+3.  **Delete the Wrong Project (Optional but Recommended)**:
+    *   If you have a project showing "Hello World", delete it to avoid confusion.
+    *   如果有一个显示 "Hello World" 的项目，建议先删除它。
+
+4.  **Create Application (The Critical Step)**:
+    *   Click **Create application** (创建应用).
+    *   **LOOK AT THE TABS**: You will see two tabs: "Workers" and "Pages".
+    *   **CLICK "PAGES"**. (一定要点击 **Pages** 标签页)。
+    *   Click **Connect to Git** (连接到 Git)。
+
+5.  **Configure Build**:
+    *   Select your repository.
+    *   **Project Name**: Enter `face-guard` (or any name).
+    *   **Framework Preset**: Select `Vite` or `React`.
+    *   **Build command**: `npm run build`
+    *   **Build output directory**: `dist`
+        *   *(If you are in the right place, you WILL see this option / 如果操作正确，您一定会看到这个选项)*.
+
+6.  **Save and Deploy**:
+    *   Click **Save and Deploy**. Cloudflare will pull your code, run `npm install`, `npm run build`, and host the `dist` folder.
 
 ---
 
 ## 4. Usage Guide / 使用指南
 
 ### Step 1: Initialization / 初始化
-1.  Open the application.
+1.  Open the application URL.
 2.  **Wait**: The screen will show "Initializing Neural Networks". It downloads ~12MB of model weights.
 3.  **Permission**: Click "Allow" when the browser asks for camera access.
 
@@ -107,41 +121,4 @@ This tab is divided into two sub-sections:
 
 ### Step 4: Monitoring / 监控
 1.  Switch back to the **MONITOR** tab.
-2.  Walk around. The system should track your face, age, gender, and expression.
-
----
-
-## 5. Deployment / 部署指南
-
-### Deploy to Cloudflare Pages (部署到 Cloudflare Pages)
-
-This project is configured to use **Vite** for building static assets.
-本项目配置了 **Vite** 用于构建静态资源。
-
-**Prerequisites / 前置条件**:
-1.  A GitHub Account / GitHub 账号.
-2.  A Cloudflare Account / Cloudflare 账号.
-
-**Steps / 步骤**:
-
-1.  **Push to GitHub / 推送到 GitHub**:
-    *   Commit all files to a GitHub repository.
-    *   将所有文件提交到 GitHub 仓库。
-
-2.  **Cloudflare Pages Dashboard / Cloudflare 控制台**:
-    *   Log in to Cloudflare Dashboard -> **Workers & Pages**.
-    *   Click **Create application** -> **Pages** -> **Connect to Git**.
-    *   Select your repository.
-    *   登录 Cloudflare -> **Workers & Pages**。
-    *   点击 **Create application** -> **Pages** -> **Connect to Git**。
-    *   选择你的仓库。
-
-3.  **Build Configuration / 构建配置**:
-    *   **Framework preset (框架预设)**: Select `Vite` or `React`.
-    *   **Build command (构建命令)**: `npm run build`
-    *   **Build output directory (构建输出目录)**: `dist`
-    *   Click **Save and Deploy**.
-
-4.  **Finish / 完成**:
-    *   Wait for the build to complete. Cloudflare will provide a URL (e.g., `https://your-project.pages.dev`).
-    *   等待构建完成。Cloudflare 会提供一个访问链接。
+2.  Walk around. The system should track your face.
