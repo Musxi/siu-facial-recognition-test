@@ -18,6 +18,11 @@ let lastProfileFingerprint = "";
 // PROMISE CACHE
 let loadingPromise: Promise<boolean> | null = null;
 
+// PERFORMANCE OPTIMIZATION: Cache Options Objects
+// 性能优化：缓存配置对象，避免每一帧重复创建导致的 GC 开销
+let ssdOptionsStrict: any = null;
+let ssdOptionsLoose: any = null;
+
 // Configuration
 const CONFIG = {
   // Priority list of Model URLs to try. 
@@ -72,6 +77,10 @@ export const loadModels = (): Promise<boolean> => {
         console.log(`✅ Success: Critical models loaded from ${url}`);
         isCriticalModelsLoaded = true;
 
+        // Initialize cached options once models are loaded
+        ssdOptionsStrict = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.85 });
+        ssdOptionsLoose = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
+
         loadDemographicsBackground(url);
         return true;
       } catch (error) {
@@ -121,10 +130,13 @@ export const extractFaceDescriptor = async (
         return null;
       }
 
-      // Config: High confidence for registration to prevent blurry/bad samples
-      const options = strictMode 
-        ? new faceapi.SsdMobilenetv1Options({ minConfidence: 0.85 }) 
-        : new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
+      // Use cached options if available
+      let options = strictMode ? ssdOptionsStrict : ssdOptionsLoose;
+      if (!options) {
+           options = strictMode 
+            ? new faceapi.SsdMobilenetv1Options({ minConfidence: 0.85 }) 
+            : new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
+      }
 
       // Use detectSingleFace for registration to ensure we get the MAIN face
       const detection = await faceapi.detectSingleFace(imageElement, options)
@@ -220,11 +232,13 @@ export const detectFacesReal = async (
 
   try {
     // 1. Detection
-    // Use slightly looser options for real-time monitoring to catch faces in motion
-    const options = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
+    // Use cached options for speed
+    let options = ssdOptionsLoose;
+    if (!options) options = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
     
     let task = faceapi.detectAllFaces(video, options).withFaceLandmarks().withFaceDescriptors();
     
+    // Note: Demographics add ~20-50ms overhead per frame. 
     if (isDemographicsLoaded) {
         task = task.withFaceExpressions().withAgeAndGender();
     }

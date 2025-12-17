@@ -94,6 +94,7 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
       if (!isProcessing) {
         isProcessing = true;
         try {
+          // Optimized: detectFacesReal now uses cached options
           const results = await detectFacesReal(videoRef.current, profiles, threshold);
           
           if (isMountedRef.current) {
@@ -206,7 +207,10 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({ profiles, onLogEntry, lang, t
                 return (
                   <div 
                     key={idx} // Using index is okay here as they are transient
-                    className={`absolute flex flex-col transition-all duration-75 ease-linear border-2 ${borderColor} ${shadow}`}
+                    // PERFORMANCE: 
+                    // 1. transition-all duration-100 ease-linear: Smooths out the 15-20fps detection to look like 60fps
+                    // 2. will-change-[...]: Hints browser to use GPU compositing
+                    className={`absolute flex flex-col border-2 ${borderColor} ${shadow} transition-all duration-100 ease-linear will-change-[top,left,width,height]`}
                     style={getBoxStyle(det.box_2d)}
                   >
                     <div className="absolute top-full left-0 mt-1 min-w-[140px] transform scale-x-[-1] origin-top-left z-20">
